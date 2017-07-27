@@ -8,11 +8,8 @@ class Camera {
 public:
  double pos[3] = {0, 0, 0};
  // The position of the camera.
- double normal[3] = {1, 0, 0};
- // The direction that the camera is pointing in.
- // It cannot be 0, 0, 0, because the camera has to point _somewhere_.
- double angle = 0;
- // The angle of the camera with respect to roll.
+ double angle[3] = {0, 0, 0};
+ // The angle that the camera is pointing in, specified in roll, pitch, and yaw.
  // I would initialize these variables in the constructor, but I've declared them up here for other functions to also use, so I have to define something up here anyway.
  Camera() {
 
@@ -22,12 +19,12 @@ public:
 		this->pos[i] = pos[i];
 	}
  }
- Camera(double *pos, double *normal, int posElements, int normalElements) {
+ Camera(double *pos, double *angle, int posElements, int normalElements) {
  	for (int i = 0; i < posElements; i++) {
 		this->pos[i] = pos[i];
 	}
 	for (int i = 0; i < normalElements; i++) {
-		this->normal[i] = normal[i];
+		this->angle[i] = angle[i];
 	}
  }
 };
@@ -36,6 +33,10 @@ class Viewport {
 public:
  double size = 1;
  Camera *cam;
+ double initpos[4][3] = {{-1, 1, 1},
+{1, 1, 1},
+{-1, -1, 1},
+{1, -1, 1}};
  double pos[4][3] = {{-1, 1, 1},
 {1, 1, 1},
 {-1, -1, 1},
@@ -43,31 +44,60 @@ public:
  // By default, the Viewport should be a rectangle.
  void setVPosToCam () {
  	// This function should only be called if this class has a cam pointer.
-	// Specifying x y and z of the camera: cam->pos[0-3]
-	// The coordinates of the center of the rectangle should be: camera pos + (vector that is a multiple of cam->normal but has magnitude of size).
-	// normal/||normal|| * size + cam->pos should be the coordinates of the center.
-	// Finding the magnitude of cam->normal
-	double magnitude = 0;
-	for (int i = 0; i < sizeof(cam->normal)/sizeof(double); i++) {
-		magnitude += (cam->normal[i])*(cam->normal[i]);
+	// Specifying x y and z of the camera: cam->pos[0-2]
+	// Specying roll, pitch, and yaw of the camera: cam->angle[0-2]
+	// Now, I need to rotate each of the points around each of the angles:
+	// roll, around the x pole at the camera's position,
+	// yaw, around the y pole at the camera's position,
+	// and pitch, around the z pole at the camera's position.
+	// Now, let's go through the entire array and set the coordinates of this rectangle.
+	// First, scale, then, rotate, then add to pos of cam.
+	for (int i = 0; i < sizeof(pos)/sizeof(pos[0]); i++) {
+		for (int j = 0; j < sizeof(pos[0])/sizeof(double); j++) {
+			pos[i][j] = initpos[i][j] * size;
+			cout << "initpos[i][j] * size = " << initpos[i][j] * size << endl;
+		}
 	}
-	magnitude = sqrt(magnitude);
-	double center[3];
-	for (int i = 0; i < sizeof(cam->pos)/sizeof(double); i++) {
-		center[i] = cam->normal[i]/magnitude + cam->pos[i];
+	double magnitude[sizeof(pos)/sizeof(pos[0])] = {0};
+	for (int i = 0; i < sizeof(pos)/sizeof(pos[0]); i++) {
+		for (int j = 0; j < sizeof(pos[0])/sizeof(double); j++) {
+			magnitude[i] += pos[i][j]*pos[i][j];
+		}
+		magnitude[i] = sqrt(magnitude[i]);
 	}
-	// The coordinates of the rectangle's points should be the center of the rectangle plus or minus size in x and y relative to a xy plane that has a normal of cam->normal and a point on it that is the center of the rectangle.
-	// An easier way to do that: Find four vectors with magnitude of size, that are perpendicular to the normal vector, with an angle - 45, angle + 45, angle + 135, angle - 135, to get a square. If we want to change this to a 16:9 rectangle, just adjust these angles in some way.
-	// relative to... what? Imagine the point pos, and a line going to point normal. Look at the line head on from point cam. The angle from that point, to the points that make a square around it, how do we define it? It's completely arbritrary, is it not? As a quickfix before we figure out how other engines do it, I'll just have the |x| + |y| + |z| be as large as possible for the first vertice of the rectangle.
-	// I just realized something. The set of vectors perpendicular to another vector at a point... is the definition of a plane.
-	// And the set of vectors perpendicular to that point with a length size... is a circle on that plane.
-	// So we have to find the point on the circle that is furthest away from the origin. Whoops, that's multivariable calculus and now I want to cry and find another way to define a standard angle.
-	// And, I just realized, that some of these circles might have multiple points where the sum of the absolute values of their coordinates is at a maximum, depending on if the rectangle passes through the xyz planes.
-	// This means that we cannot use the aforementioned as a standard angle for continuously updating cameras, as it is not always smooth.
-	// That means that Viewpoints need to read from one of the edges of the viewport to update the rest of them.
-	// But wait, if I can do that, can't I just define a rectangle with a normal of (1,0,0), and a size of 1, and then scale it up based on size, and then rotate it based on normal?
-	// Now, let's iterate through the entire array and set the coordinates of this rectangle.
-	// Err, I forgot how to iterate through multi-dimensioned arrays. My b, will have to look through my example codes that are back home.
+	// To rotate around just one plane, we would need a flat magnitude every time.
+	// And unfortunately, since I decided to do it in degrees instead of direction vectors (omg how do you do it in direction vectors), I need to rotate on flat planes, one for each pair of dimensions.
+	// This is convenient in 2D and 3D; you have one pair of dimensions, and so need one plane to rotate on, and one measure of degrees. In 3D, you have 3 pairs of dimensions (xy, yz, zx), and three measures of degrees. In 4D however, there are 6 degrees. xy, xz, xm, yz, ym, zm.
+	// So, this means: I need to calculate all of the pairs of variables in cam->pos , I need to make sure that there are that many variables in cam->degrees, then I need to calculate a pair's flat magnitude, then I need to set those two coordinates to magnitude[i] * sin(degrees[i]) and magnitude[i] * cos(degrees[i]) respectively. Uh, how do I calculate n choose two again?
+	// To iterate through all of the pairs: iterate through two for loops of i and j < the number of dimensions in pos, and don't let j get bigger than or equal to i.
+	int coordinatePair = 0;
+	for (int i = 0; i < sizeof(pos[0])/sizeof(double); i++) {
+		for (int j = 0; j < i; j++) {
+			coordinatePair++;
+		}
+	}
+	double flatMagnitude[coordinatePair+1];
+	for (int i = 0; i < sizeof(pos)/sizeof(pos[0]); i++) {
+		coordinatePair = 0;	
+		for (int j = 0; j < sizeof(pos[0])/sizeof(double); j++) {
+			for (int k = 0; k < j; k++) {
+				flatMagnitude[coordinatePair] = sqrt((pos[i][j]*pos[i][j])+(pos[i][k]*pos[i][k]));
+				pos[i][j] = cos(cam->angle[coordinatePair])*flatMagnitude[coordinatePair];
+				pos[i][j] = sin(cam->angle[coordinatePair])*flatMagnitude[coordinatePair];
+				coordinatePair++;
+				// The above will apply the rotation transformations for all of the coordinate pair rotations. It's both disgusting and beautiful, isn't it?
+			}
+		}
+	}
+	cout << "sizeof(pos)/sizeof(pos[0]): " << sizeof(pos)/sizeof(pos[0]) << endl;
+	cout << "sizeof(pos[0])/sizeof(double): " << sizeof(pos[0])/sizeof(double) << endl;
+	for (int i = 0; i < sizeof(pos)/sizeof(pos[0]); i++) {
+		for (int j = 0; j < sizeof(pos[0])/sizeof(double); j++) {
+			pos[i][j] += cam->pos[j];
+			// This will move the scaled and rotated viewport to where the camera is.
+		}
+	}
+	
  }
  Viewport () {
 	size = 1;
@@ -97,16 +127,32 @@ int *findIntersect(Viewport *view, double vertice[], double cameraPos[]) {
 int main() {
 	cout << "Hello World!" << endl;
 	double camPos[] = {3.4, 2.1, 4};
-	double camNormal[] = {8, 2, 1};
-	Camera camera(camPos, camNormal, 3, 3);
+	double camDegree[] = {8, 2, 1};
+	Camera camera(camPos, camDegree, 3, 3);
 	for (int i = 0; i < sizeof(camera.pos)/sizeof(double); i++) {
 		cout << camera.pos[i] << endl;
 	}
-	for (int i = 0; i < sizeof(camera.normal)/sizeof(double); i++) {
-		cout << camera.normal[i] << endl;
+	for (int i = 0; i < sizeof(camera.angle)/sizeof(double); i++) {
+		cout << camera.angle[i] << endl;
 	}
 	Camera *cam = &camera;
 	Viewport view(cam);
-	view.
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 3; j++) {
+			cout << view.pos[i][j] << "," << flush;
+		}
+		cout << endl;
+	}
+	camera.angle[0] = 14;
+	camera.angle[1] = -23;
+	camera.angle[2] = 33;
+	view.size = 10;
+	view.setVPosToCam();
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 3; j++) {
+			cout << view.pos[i][j] << "," << flush;
+		}
+		cout << endl;
+	}
 	return 0;
 }
