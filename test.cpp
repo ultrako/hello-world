@@ -2,6 +2,8 @@
 #include <iostream>
 #include <stdio.h>
 #include <math.h>
+#include <vector>
+#include <gsl/gsl_linalg.h>
 using namespace std;
 
 class Camera {
@@ -116,6 +118,79 @@ public:
 	}
 	
  }
+ double* posToMatrix(int width, int height) {
+	// If we get the equation for the matrix, we need to solve for 4 points on the matrix, so we might as well just start with the 4 points from viewport.pos[][]
+	// pos[0][] will map to 0,0
+	// pos[1][] will map to W_WIDTH,0
+	// pos[2][] will map to W_WIDTH,W_HEIGHT
+	// pos[3][] will map to 0,W_HEIGHT
+	// Either way, we need to calculate once, and only once (per change of the viewport's angle), the matrix that will map points from a plane to a cartesian grid.
+	// With the matrix, we will only need to apply the matrix to any position vector in space to get where it would be "on the screen" that is represented by the viewport.
+	// The use of the matrix will look like this:
+	/*
+	 *					|0,0	1,0|
+	 *	|0,0	1,0	2,0|	  X	|0,1	1,1|	=	|0,0	1,0|
+	 *					|0,2	1,2|
+	 *
+	*/
+	// With the first matrix being the input position, the second matrix being the transformation matrix, and the third matrix being the new coordinates.
+	// So let's make a matrix like the one in the middle.
+	double* transformationMatrix = new double[6];
+	// Now, we need to figure out how to calculate this.
+	// Done?:
+	// v1x*a + v1y*b + v1z*c = 0
+	// v2x*a + v2y*b + v2z*c = W_WIDTH
+	// v3x*a + v3y*b + v3z*c = W_WIDTH
+	// and
+	// v1x*d + v1y*e + v1z*f = 0
+	// v2x*d + v2y*e + v2z*f = 0
+	// v3x*d + v3y*e + v3z*f = W_HEIGHT 
+	// , from the matrices above.
+	// It is possible that I need to place W_HEIGHT - 1 and W_WIDTH - 1 for the above calculations. Think about this later.
+	// We will already have: v1 and v2 values. We will already have 100% of the information about rotation and x+y scale just by where v2 and v3 is relative to v1.
+	// So now we just solve for the intersection of those 3 planes to get a, b, c, and then we solve the second equation triplet to get d, e, and f.
+	// Thankfully, the above two equations are already very neatly ordered. In fact, taking the inverse of the 3x3 matrix represented by the left part of the equations and then multiplying them by the values on the right hand side (either 0, W_WIDTH, W_WIDTH or 0, 0, W_HEIGHT)
+	double posTrimmed[9];
+	int k = 0;
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			posTrimmed[k] = pos[i][j];
+			k++;
+		}
+	}
+	// The above trims pos to a 3x3 matrix, which is all we need to solve (it is the left side of the equation, apart from the letters a to f.)
+	gsl_matrix_view v = gsl_matrix_view_array (posTrimmed, 3, 3);
+	// This turns the array to a 3x3 gsl_matrix
+	double b1_data[3] = {0, width, width};
+	double b2_data[3] = {0, 0, height};
+	// The above are the right-hand sides of the equations.
+	gsl_vector_view b1 = gsl_vector_view_array (b1_data, 3);
+	// This turns the right hand side of the top equation to a 3x1 matrix b1.
+	gsl_vector_view b2 = gsl_vector_view_array (b2_data, 3);
+	// And the same for b2.
+	gsl_vector *x1 = gsl_vector_alloc (3);
+	// x1 is going to be the solution vector, [a b c]
+	gsl_vector *x2 = gsl_vector_alloc (3);
+	// And so is x2, for [d e f]
+	int s1;
+	int s2;
+	// No idea what these ints do.
+	gsl_permutation *p1 = gsl_permutation_alloc(3);
+	gsl_permutation *p2 = gsl_permutation_alloc(3);
+	gsl_linalg_LU_decomp(&v.matrix, p1, &s1);
+	gsl_linalg_LU_decomp(&v.matrix, p2, &s2);
+	gsl_linalg_LU_solve(&v.matrix, p1, &b1.vector, x1);
+	gsl_linalg_LU_solve(&v.matrix, p2, &b2.vector, x2);
+	// And now we have a b c d e and f.
+	for (int i = 0; i < 3; i++) {
+		transformationMatrix[i] = gsl_vector_get(x1, i);
+	}
+	for (int i = 0; i < 3; i++) {
+		transformationMatrix[i+3] = gsl_vector_get(x2, i);
+	}
+	// So the transformationMatrix will have values [a b c d e f].
+	return transformationMatrix;
+}
  Viewport () {
 	size = 1;
 	// If a camera is not specified, nor the size, the viewport should have a size of one, and be pointing toward the x axis.
@@ -187,7 +262,7 @@ double *findIntersect(Viewport *view, double vertice[], double cameraPos[], int 
 	// t = (d - (a * cameraPos[0] + b * cameraPos[1] + c * cameraPos[2]))/(a*v[0] + b*v[1] + c*v[2])
 	double t;
 	t = (d - (a * cameraPos[0] + b * cameraPos[1] + c * cameraPos[2]))/(a*v[0] + b*v[1] + c*v[2]);
-	double intersect[arrayIndex];
+	double *intersect = new double[arrayIndex];
 	for (int i = 0; i < arrayIndex; i++) {
 		intersect[i] = (v[i]*t) + cameraPos[i];
 		cout << "i in intersect[i] is: " << i << ", v[i] is: " << v[i] << ", t is: " << t << ", and intersect[" << i << "] is: " << intersect[i] << endl;
@@ -195,7 +270,7 @@ double *findIntersect(Viewport *view, double vertice[], double cameraPos[], int 
 	// So, for some reason, this is returning ludicrous values, and only one coordinate of them. Trying to manually set the counter to 3 will return three coordinates of inf, inf, inf.
 	return intersect;
 }
-double* pointsToMatrix(double v[4][3]) {
+double* pointsToMatrix(double pos[4][3], int width, int height) {
 	// If we get the equation for the matrix, we need to solve for 4 points on the matrix, so we might as well just start with the 4 points from viewport.pos[][]
 	// pos[0][] will map to 0,0
 	// pos[1][] will map to W_WIDTH,0
@@ -212,29 +287,126 @@ double* pointsToMatrix(double v[4][3]) {
 	*/
 	// With the first matrix being the input position, the second matrix being the transformation matrix, and the third matrix being the new coordinates.
 	// So let's make a matrix like the one in the middle.
-	transformationMatrix = new transformationMatrix[2][3];
+	double* transformationMatrix = new double[6];
 	// Now, we need to figure out how to calculate this.
 	// Done?:
-	// v1x*a + v1y*b + v1c*z = 0
-	// v2x*a + v2y*b + v2c*z = W_WIDTH
-	// v3x*a + v3y*b + v3c*z = W_WIDTH
+	// v1x*a + v1y*b + v1z*c = 0
+	// v2x*a + v2y*b + v2z*c = W_WIDTH
+	// v3x*a + v3y*b + v3z*c = W_WIDTH
 	// and
-	// v1x*d + v1y*e + v1c*f = 0
-	// v2x*d + v2y*e + v2c*f = 0
-	// v3x*d + v3y*e + v3c*f = W_HEIGHT 
+	// v1x*d + v1y*e + v1z*f = 0
+	// v2x*d + v2y*e + v2z*f = 0
+	// v3x*d + v3y*e + v3z*f = W_HEIGHT 
 	// , from the matrices above.
+	// It is possible that I need to place W_HEIGHT - 1 and W_WIDTH - 1 for the above calculations. Think about this later.
 	// We will already have: v1 and v2 values. We will already have 100% of the information about rotation and x+y scale just by where v2 and v3 is relative to v1.
 	// So now we just solve for the intersection of those 3 planes to get a, b, c, and then we solve the second equation triplet to get d, e, and f.
+	// Thankfully, the above two equations are already very neatly ordered. In fact, taking the inverse of the 3x3 matrix represented by the left part of the equations and then multiplying them by the values on the right hand side (either 0, W_WIDTH, W_WIDTH or 0, 0, W_HEIGHT)
+	double posTrimmed[9];
+	int k = 0;
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 3; j++) {
+			posTrimmed[k] = pos[i][j];
+			k++;
+		}
+	}
+	// The above trims pos to a 3x3 matrix, which is all we need to solve (it is the left side of the equation, apart from the letters a to f.)
+	gsl_matrix_view v = gsl_matrix_view_array (posTrimmed, 3, 3);
+	// This turns the array to a 3x3 gsl_matrix
+	double b1_data[3] = {0, width, width};
+	double b2_data[3] = {0, 0, height};
+	// The above are the right-hand sides of the equations.
+	gsl_vector_view b1 = gsl_vector_view_array (b1_data, 3);
+	// This turns the right hand side of the top equation to a 3x1 matrix b1.
+	gsl_vector_view b2 = gsl_vector_view_array (b2_data, 3);
+	// And the same for b2.
+	gsl_vector *x1 = gsl_vector_alloc (3);
+	// x1 is going to be the solution vector, [a b c]
+	gsl_vector *x2 = gsl_vector_alloc (3);
+	// And so is x2, for [d e f]
+	int s1;
+	int s2;
+	// No idea what these ints do.
+	gsl_permutation *p1 = gsl_permutation_alloc(3);
+	gsl_permutation *p2 = gsl_permutation_alloc(3);
+	gsl_linalg_LU_decomp(&v.matrix, p1, &s1);
+	gsl_linalg_LU_decomp(&v.matrix, p2, &s2);
+	gsl_linalg_LU_solve(&v.matrix, p1, &b1.vector, x1);
+	gsl_linalg_LU_solve(&v.matrix, p2, &b2.vector, x2);
+	// And now we have a b c d e and f.
+	for (int i = 0; i < 3; i++) {
+		transformationMatrix[i] = gsl_vector_get(x1, i);
+	}
+	for (int i = 0; i < 3; i++) {
+		transformationMatrix[i+3] = gsl_vector_get(x2, i);
+	}
+	// So the transformationMatrix will have values [a b c d e f].
 	return transformationMatrix;
 }
 bool isIntersectInShape(Viewport *view, double *intersect) {
 	// Because I used the definition for a plane when calculating the intersection, checking if the array intersect is on a plane containing 3 points of the viewport would be redundant. This means that when calculating if a point is in a rectangle, I could do a simpler check to see if it is in a rectangular prism, instead.
 	// The viewport is always going to be a rectangle for now, since pentagon screens and 3D displays don't exist yet.
 	// https://math.stackexchange.com/questions/190111/how-to-check-if-a-point-is-inside-a-rectangle
-	// Figure out that one simple vector answer in the above link and then explain it so that my future self can understand it.
-	// If the vector answer doesn't work out, we could simply make a transformation that maps point 1 of the rectangle to 0,0 on a coordinate plane and point 3 to 1,1 on the coordinate plane, and then apply that transformation to the intersect point, and see if 1 > x > 0 and 1 > y > 0
+	// If the vector answer doesn't work out, we could simply make a transformation that maps point 1 of the rectangle to 0,0 on a coordinate plane and point 3 to 1,1 on the coordinate plane, and then apply that transformation to the intersect point, and see if 1 > x > 0 and 1 > y > 0. Turns out I need to map the viewport anyway, so go with this.
 }
+
+class Polyhedron {
+ public:
+ class Vertice {
+  public:
+  double pos[3] = {0, 0, 0};
+  vector < Vertice* > connections;
+  Vertice(Polyhedron* poly) {
+	poly->vertices.push_back(this);
+  }
+ };
+ vector < Vertice* > vertices;
+ void disconnectAll() {
+	for (int i = 0; i < vertices.size(); i++) {
+		vertices[i]->connections.resize(0);
+		// This will set every connections vector in all of the vertices to have no values, AKA disconnecting all of the vertices.
+	}
+ }
+ void connectAll() {
+	for (int i = 0; i < vertices.size(); i++) {
+		for (int j = 0; j < vertices.size(); j++) {
+			vertices[i]->connections.push_back(vertices[j]);
+			// This will go through every single pair of vertices and connect them.
+		}
+	}
+ }
+ void randVerticePos() {
+	int randSize = 100;
+	// This is the cube's side length for randomization
+	double randPos[3] = {0, 0, 0};
+	// This is where the center of the cube is for the random vertices to be in.
+	for (int i = 0; i < vertices.size(); i++) {
+		vertices[i]->pos[0] = (rand() % (randSize + 1))+randPos[0];
+		vertices[i]->pos[1] = (rand() % (randSize + 1))+randPos[1];
+		vertices[i]->pos[2] = (rand() % (randSize + 1))+randPos[2];
+	}
+ }
+ void randVerticePos(int randSize) {
+	double randPos[3] = {0, 0, 0};
+	// This is where the center of the cube is for the random vertices to be in.
+	for (int i = 0; i < vertices.size(); i++) {
+		vertices[i]->pos[0] = (rand() % (randSize + 1))+randPos[0];
+		vertices[i]->pos[1] = (rand() % (randSize + 1))+randPos[1];
+		vertices[i]->pos[2] = (rand() % (randSize + 1))+randPos[2];
+	}
+ }
+ void randVerticePos(int randSize, double randPos[3]) {
+	for (int i = 0; i < vertices.size(); i++) {
+		vertices[i]->pos[0] = (rand() % (randSize + 1))+randPos[0];
+		vertices[i]->pos[1] = (rand() % (randSize + 1))+randPos[1];
+		vertices[i]->pos[2] = (rand() % (randSize + 1))+randPos[2];
+	}
+ }
+ // For these above 3 functions try to find a random function that returns doubles, not integers.
+};
 int main() {
+	const int width = 1920;
+	const int height = 1080;
 	cout << "Hello World!" << endl;
 	double camPos[] = {3.4, 2.1, 4};
 	double camDegree[] = {8, 2, 1};
@@ -266,6 +438,8 @@ int main() {
 	Viewport *pView = &view;
 	double vertice[3] = {34, 1, -4};
 	double *intersect = findIntersect(pView, vertice, camera.pos, sizeof(camPos)/sizeof(double));
+	double *transformMatrix = view.posToMatrix(width, height);
+	cout << "| " << transformMatrix[0] << " " << transformMatrix[1] << " |" << endl << "| " << transformMatrix[2] << " " << transformMatrix[3] << " |" << endl << "| " << transformMatrix[4] << " " << transformMatrix[5] << " |" << endl;
 	cout << "done" << endl;
 	return 0;
 }
