@@ -1,0 +1,75 @@
+Hello World!
+3.4
+0
+0
+8
+0
+0
+initpos[i][j] * size = -1
+initpos[i][j] * size = 1
+initpos[i][j] * size = 1
+initpos[i][j] * size = 1
+initpos[i][j] * size = 1
+initpos[i][j] * size = 1
+initpos[i][j] * size = -1
+initpos[i][j] * size = -1
+initpos[i][j] * size = 1
+initpos[i][j] * size = 1
+initpos[i][j] * size = -1
+initpos[i][j] * size = 1
+, -1, 1, 1
+, 1, 1, 1
+, -1, -1, 1
+, 1, -1, 1
+i is: 0, j is: 1, k is: 0, coordinatePair is: 0, cam->angle[coordinatePair] is: 8, pos[0][0] is: -0.843858, pos[0][1] is: -1.13486, flatMagnitude[0] is: 1.41421, flatAngle[0] is: 2.35619
+i is: 0, j is: 2, k is: 0, coordinatePair is: 1, cam->angle[coordinatePair] is: 0, pos[0][0] is: -0.843858, pos[0][2] is: 1, flatMagnitude[1] is: 1.30847, flatAngle[1] is: 2.27171
+i is: 0, j is: 2, k is: 1, coordinatePair is: 2, cam->angle[coordinatePair] is: 0, pos[0][1] is: -1.13486, pos[0][2] is: 1, flatMagnitude[2] is: 1.51258, flatAngle[2] is: 2.41928
+i is: 1, j is: 1, k is: 0, coordinatePair is: 0, cam->angle[coordinatePair] is: 8, pos[1][0] is: -1.13486, pos[1][1] is: 0.843858, flatMagnitude[0] is: 1.41421, flatAngle[0] is: 0.785398
+i is: 1, j is: 2, k is: 0, coordinatePair is: 1, cam->angle[coordinatePair] is: 0, pos[1][0] is: -1.13486, pos[1][2] is: 1, flatMagnitude[1] is: 1.51258, flatAngle[1] is: 2.41928
+i is: 1, j is: 2, k is: 1, coordinatePair is: 2, cam->angle[coordinatePair] is: 0, pos[1][1] is: 0.843858, pos[1][2] is: 1, flatMagnitude[2] is: 1.30847, flatAngle[2] is: 0.869879
+i is: 2, j is: 1, k is: 0, coordinatePair is: 0, cam->angle[coordinatePair] is: 8, pos[2][0] is: 1.13486, pos[2][1] is: -0.843858, flatMagnitude[0] is: 1.41421, flatAngle[0] is: -2.35619
+i is: 2, j is: 2, k is: 0, coordinatePair is: 1, cam->angle[coordinatePair] is: 0, pos[2][0] is: 1.13486, pos[2][2] is: 1, flatMagnitude[1] is: 1.51258, flatAngle[1] is: 0.722312
+i is: 2, j is: 2, k is: 1, coordinatePair is: 2, cam->angle[coordinatePair] is: 0, pos[2][1] is: -0.843858, pos[2][2] is: 1, flatMagnitude[2] is: 1.30847, flatAngle[2] is: 2.27171
+i is: 3, j is: 1, k is: 0, coordinatePair is: 0, cam->angle[coordinatePair] is: 8, pos[3][0] is: 0.843858, pos[3][1] is: 1.13486, flatMagnitude[0] is: 1.41421, flatAngle[0] is: -0.785398
+i is: 3, j is: 2, k is: 0, coordinatePair is: 1, cam->angle[coordinatePair] is: 0, pos[3][0] is: 0.843858, pos[3][2] is: 1, flatMagnitude[1] is: 1.30847, flatAngle[1] is: 0.869879
+i is: 3, j is: 2, k is: 1, coordinatePair is: 2, cam->angle[coordinatePair] is: 0, pos[3][1] is: 1.13486, pos[3][2] is: 1, flatMagnitude[2] is: 1.51258, flatAngle[2] is: 0.722312
+sizeof(pos)/sizeof(pos[0]): 4
+sizeof(pos[0])/sizeof(double): 3
+2.55614,-1.13486,1,
+2.26514,0.843858,1,
+4.53486,-0.843858,1,
+4.24386,1.13486,1,
+initpos[i][j] * size = -10
+initpos[i][j] * size = 10
+initpos[i][j] * size = 10
+initpos[i][j] * size = 10
+initpos[i][j] * size = 10
+initpos[i][j] * size = 10
+initpos[i][j] * size = -10
+initpos[i][j] * size = -10
+initpos[i][j] * size = 10
+initpos[i][j] * size = 10
+initpos[i][j] * size = -10
+initpos[i][j] * size = 10
+, -10, 10, 10
+, 10, 10, 10
+, -10, -10, 10
+, 10, -10, 10
+i is: 0, j is: 1, k is: 0, coordinatePair is: 0, cam->angle[coordinatePair] is: 14, pos[0][0] is: -11.2734, pos[0][1] is: -8.5387, flatMagnitude[0] is: 14.1421, flatAngle[0] is: 2.35619
+i is: 0, j is: 2, k is: 0, coordinatePair is: 1, cam->angle[coordinatePair] is: -23, pos[0][0] is: -2.45534, pos[0][2] is: -14.8682, flatMagnitude[1] is: 15.0695, flatAngle[1] is: 2.41598
+i is: 0, j is: 2, k is: 1, coordinatePair is: 2, cam->angle[coordinatePair] is: 33, pos[0][1] is: 14.9802, pos[0][2] is: -8.34055, flatMagnitude[2] is: 17.1456, flatAngle[2] is: -2.0921
+i is: 1, j is: 1, k is: 0, coordinatePair is: 0, cam->angle[coordinatePair] is: 14, pos[1][0] is: -8.5387, pos[1][1] is: 11.2734, flatMagnitude[0] is: 14.1421, flatAngle[0] is: 0.785398
+i is: 1, j is: 2, k is: 0, coordinatePair is: 1, cam->angle[coordinatePair] is: -23, pos[1][0] is: -3.9125, pos[1][2] is: -12.554, flatMagnitude[1] is: 13.1495, flatAngle[1] is: 2.27753
+i is: 1, j is: 2, k is: 1, coordinatePair is: 2, cam->angle[coordinatePair] is: 33, pos[1][1] is: 12.4032, pos[1][2] is: 11.4391, flatMagnitude[2] is: 16.8728, flatAngle[2] is: -0.839087
+i is: 2, j is: 1, k is: 0, coordinatePair is: 0, cam->angle[coordinatePair] is: 14, pos[2][0] is: 8.5387, pos[2][1] is: -11.2734, flatMagnitude[0] is: 14.1421, flatAngle[0] is: -2.35619
+i is: 2, j is: 2, k is: 0, coordinatePair is: 1, cam->angle[coordinatePair] is: -23, pos[2][0] is: -13.0119, pos[2][2] is: 1.89729, flatMagnitude[1] is: 13.1495, flatAngle[1] is: 0.86406
+i is: 2, j is: 2, k is: 1, coordinatePair is: 2, cam->angle[coordinatePair] is: 33, pos[2][1] is: -1.74745, pos[2][2] is: -11.2976, flatMagnitude[2] is: 11.432, flatAngle[2] is: 2.97486
+i is: 3, j is: 1, k is: 0, coordinatePair is: 0, cam->angle[coordinatePair] is: 14, pos[3][0] is: 11.2734, pos[3][1] is: 8.5387, flatMagnitude[0] is: 14.1421, flatAngle[0] is: -0.785398
+i is: 3, j is: 2, k is: 0, coordinatePair is: 1, cam->angle[coordinatePair] is: -23, pos[3][0] is: -14.4691, pos[3][2] is: 4.21149, flatMagnitude[1] is: 15.0695, flatAngle[1] is: 0.725609
+i is: 3, j is: 2, k is: 1, coordinatePair is: 2, cam->angle[coordinatePair] is: 33, pos[3][1] is: -4.32448, pos[3][2] is: 8.48203, flatMagnitude[2] is: 9.52082, flatAngle[2] is: 0.458212
+sizeof(pos)/sizeof(pos[0]): 4
+sizeof(pos[0])/sizeof(double): 3
+0.94466,14.9802,-8.34055,
+-0.512502,12.4032,11.4391,
+-9.61191,-1.74745,-11.2976,
+-11.0691,-4.32448,8.48203,
