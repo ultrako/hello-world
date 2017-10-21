@@ -4,6 +4,10 @@
 #include <math.h>
 #include <vector>
 #include <gsl/gsl_linalg.h>
+#include <gsl/gsl_blas.h>
+#include "screen.h"
+// "screen.h" is a SDL header I made following a tutorial on SDL.
+// It imports SDL, so no need to do that above.
 using namespace std;
 
 class Camera {
@@ -33,6 +37,7 @@ public:
 // There should only ever be one camera, unless you want to use multiple screens.
 class Viewport {
 public:
+ Screen* screen;
  double size = 1;
  Camera *cam;
  double initpos[4][3] = {{-1, 1, 1},
@@ -41,8 +46,8 @@ public:
 {1, -1, 1}};
  double pos[4][3] = {{-1, 1, 1},
 {1, 1, 1},
-{-1, -1, 1},
-{1, -1, 1}};
+{1, -1, 1},
+{-1, -1, 1}};
  // By default, the Viewport should be a rectangle.
  void setVPosToCam () {
  	// This function should only be called if this class has a cam pointer.
@@ -53,7 +58,7 @@ public:
 	// yaw, around the y pole at the camera's position,
 	// and pitch, around the z pole at the camera's position.
 	// Now, let's go through the entire array and set the coordinates of this rectangle.
-	// First, scale, then, rotate, then add to pos of cam.
+	// First, scale, then, rotate, then add to pos of cam->
 	for (int i = 0; i < sizeof(pos)/sizeof(pos[0]); i++) {
 		for (int j = 0; j < sizeof(pos[0])/sizeof(double); j++) {
 			pos[i][j] = initpos[i][j] * size;
@@ -191,28 +196,34 @@ public:
 	// So the transformationMatrix will have values [a b c d e f].
 	return transformationMatrix;
 }
- Viewport () {
+ Viewport (Screen *screen) {
 	size = 1;
+	this->screen = screen;
+	// Set the screen to the screen specified.
 	// If a camera is not specified, nor the size, the viewport should have a size of one, and be pointing toward the x axis.
 	// This also means that the default values of pos are okay.
  }
- Viewport (Camera *cam) {
+ Viewport (Camera *cam, Screen *screen) {
  	this->cam = cam;
 	// If a camera is specified, then set the cam pointer to it.
  	size = 1;
 	// If the size is not specified, then the viewport should have a size of one.
+	this->screen = screen;
+	// Set the screen to the screen specified.
 	setVPosToCam();
 	// I decided to move the code that changes the viewport's position to its own function, because I will want to be calling it from two of the constructors, and possibly every single game frame, depending on the viewport.
  }
- Viewport (Camera *cam, double size) {
+ Viewport (Camera *cam, double size, Viewport* view) {
  	this->cam = cam;
 	// If a camera is specified, then set the cam pointer to it.
 	this->size = size;
 	// If a size is specified, then set the size of the class to it.
+	this->screen = screen;
+	// Set the screen to the screen specified.
 	setVPosToCam();
  }
 };
-double *findIntersect(Viewport *view, double vertice[], double cameraPos[], int arrayIndex) {
+double *findIntersect(Viewport *view, Camera *cam, double *vertice, int arrayIndex) {
 	cout << "Input vertice[]: " << endl;
 	for (int i = 0; i < arrayIndex; i++) {
 		cout << "vertice[" << i << "] is: " << vertice[i] << endl;
@@ -221,7 +232,7 @@ double *findIntersect(Viewport *view, double vertice[], double cameraPos[], int 
 	// First, take p1p2->
 	double v[arrayIndex];
 	for (int i = 0; i < arrayIndex; i++) {
-		v[i] = vertice[i] - cameraPos[i];
+		v[i] = vertice[i] - cam->pos[i];
 	}
 	// Then, the parametric equations are:
 	// x = v[0]*t + cameraPos[0]
@@ -261,14 +272,35 @@ double *findIntersect(Viewport *view, double vertice[], double cameraPos[], int 
 	// a(v[0]*t + cameraPos[0]) + b(v[1]*t + cameraPos[1]) + c(v[2]*t + cameraPos[2]) = d
 	// t = (d - (a * cameraPos[0] + b * cameraPos[1] + c * cameraPos[2]))/(a*v[0] + b*v[1] + c*v[2])
 	double t;
-	t = (d - (a * cameraPos[0] + b * cameraPos[1] + c * cameraPos[2]))/(a*v[0] + b*v[1] + c*v[2]);
+	t = (d - (a * cam->pos[0] + b * cam->pos[1] + c * cam->pos[2]))/(a*v[0] + b*v[1] + c*v[2]);
 	double *intersect = new double[arrayIndex];
 	for (int i = 0; i < arrayIndex; i++) {
-		intersect[i] = (v[i]*t) + cameraPos[i];
+		intersect[i] = (v[i]*t) + cam->pos[i];
 		cout << "i in intersect[i] is: " << i << ", v[i] is: " << v[i] << ", t is: " << t << ", and intersect[" << i << "] is: " << intersect[i] << endl;
 	}
-	// So, for some reason, this is returning ludicrous values, and only one coordinate of them. Trying to manually set the counter to 3 will return three coordinates of inf, inf, inf.
 	return intersect;
+}
+bool isAbovePlane(double testPoint[3], double p1[3], double p2[3], double p3[3]) {
+	// This function should be used to check the camera, and a vertice that may be drawn. If both have the same value, don't draw the point.
+	// Let's solve for the equation of the plane from the 3 points on the matrix. I already did this, so I'm just going to copy what I did.
+	double v2[3];
+	double v3[3];
+	for (int i = 0; i < 3; i++) {
+		v2[i] = p1[i] - p2[i];
+	}
+	for (int i = 0; i < 3; i++) {
+		v3[i] = p2[i] - p3[i];
+	}
+	double a = (v2[1]*v3[2]) - (v2[2]*v3[1]);
+	double b = (v2[0]*v3[2]) - (v2[2]*v3[0]);
+	double c = (v2[0]*v3[1]) - (v2[1]*v3[0]);
+	double d = (c*p1[0]) + (b*p1[1]) + (c*p1[2]);
+	// Now, when we plug in the 3 points in testPoint into ax + by + cz, if that value is bigger than the double d we just calculated above, then the point is above the plane. Else, the point is on or below the plane.
+	if (a*testPoint[0] + b*testPoint[1] + c*testPoint[2] > d) {
+		return true;
+	} else {
+		return false;
+	}
 }
 double* pointsToMatrix(double pos[4][3], int width, int height) {
 	// If we get the equation for the matrix, we need to solve for 4 points on the matrix, so we might as well just start with the 4 points from viewport.pos[][]
@@ -343,21 +375,43 @@ double* pointsToMatrix(double pos[4][3], int width, int height) {
 	// So the transformationMatrix will have values [a b c d e f].
 	return transformationMatrix;
 }
-bool isIntersectInShape(Viewport *view, double *intersect) {
-	// Because I used the definition for a plane when calculating the intersection, checking if the array intersect is on a plane containing 3 points of the viewport would be redundant. This means that when calculating if a point is in a rectangle, I could do a simpler check to see if it is in a rectangular prism, instead.
-	// The viewport is always going to be a rectangle for now, since pentagon screens and 3D displays don't exist yet.
-	// https://math.stackexchange.com/questions/190111/how-to-check-if-a-point-is-inside-a-rectangle
-	// If the vector answer doesn't work out, we could simply make a transformation that maps point 1 of the rectangle to 0,0 on a coordinate plane and point 3 to 1,1 on the coordinate plane, and then apply that transformation to the intersect point, and see if 1 > x > 0 and 1 > y > 0. Turns out I need to map the viewport anyway, so go with this.
+double* matrixTransform(double transformationMatrix[6], double pos[3]) {
+	// Multiply pos by transformationMatrix and return a new matrix[3]
+	gsl_matrix_view transform = gsl_matrix_view_array(transformationMatrix, 3, 2);
+	gsl_matrix_view initPos = gsl_matrix_view_array (pos, 1, 3);
+	gsl_matrix *result;
+	const gsl_matrix *pInitPos = &(initPos.matrix);
+	const gsl_matrix *pTransform = &(transform.matrix);
+	for (int i = 0; i < 3; i++) {
+		for (int j = 0; j < 2; j++) {
+			cout << gsl_matrix_get(pTransform, i, j) << ", " << flush;
+		}
+	}
+	cout << endl;
+	result = gsl_matrix_alloc(1,2);
+	gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, pInitPos, pTransform, 0.0, result);
+	double* arrayResult = new double[2];
+	cout << "The transformed point: " << endl;
+	for (int i = 0; i < 2; i++) {
+		arrayResult[i] = gsl_matrix_get(result, 0, i);
+		cout << gsl_matrix_get(result, 0, i) << ", " << flush;
+	}
+	cout << endl;
+	return arrayResult;
 }
-
 class Polyhedron {
  public:
+ Polyhedron(Viewport *view) {
+	this->view = view;
+ }
+ Viewport* view;
  class Vertice {
   public:
   double pos[3] = {0, 0, 0};
   vector < Vertice* > connections;
   Vertice(Polyhedron* poly) {
 	poly->vertices.push_back(this);
+	// When a vertice is made, it should add itself to the list of vertices that its polygon has.
   }
  };
  vector < Vertice* > vertices;
@@ -370,76 +424,301 @@ class Polyhedron {
  void connectAll() {
 	for (int i = 0; i < vertices.size(); i++) {
 		for (int j = 0; j < vertices.size(); j++) {
-			vertices[i]->connections.push_back(vertices[j]);
-			// This will go through every single pair of vertices and connect them.
+			if ( i != j ) {
+				vertices[i]->connections.push_back(vertices[j]);
+				// This will go through every single pair of vertices and connect them (but not connect vertices to themselves!)
+			}
 		}
 	}
  }
  void randVerticePos() {
-	int randSize = 100;
+	double randSize = 100;
 	// This is the cube's side length for randomization
 	double randPos[3] = {0, 0, 0};
 	// This is where the center of the cube is for the random vertices to be in.
 	for (int i = 0; i < vertices.size(); i++) {
-		vertices[i]->pos[0] = (rand() % (randSize + 1))+randPos[0];
-		vertices[i]->pos[1] = (rand() % (randSize + 1))+randPos[1];
-		vertices[i]->pos[2] = (rand() % (randSize + 1))+randPos[2];
+		for (int j = 0; j < 3; j++) {
+			vertices[i]->pos[j] = (((double)rand()/RAND_MAX)-0.5)*2*randSize+randPos[0];
+		}
 	}
  }
- void randVerticePos(int randSize) {
+ void randVerticePos(double randSize) {
 	double randPos[3] = {0, 0, 0};
 	// This is where the center of the cube is for the random vertices to be in.
 	for (int i = 0; i < vertices.size(); i++) {
-		vertices[i]->pos[0] = (rand() % (randSize + 1))+randPos[0];
-		vertices[i]->pos[1] = (rand() % (randSize + 1))+randPos[1];
-		vertices[i]->pos[2] = (rand() % (randSize + 1))+randPos[2];
+		for (int j = 0; j < 3; j++) {
+			vertices[i]->pos[j] = (((double)rand()/RAND_MAX)-0.5)*2*randSize+randPos[0];
+		}
 	}
  }
- void randVerticePos(int randSize, double randPos[3]) {
+ void randVerticePos(double randSize, double randPos[3]) {
 	for (int i = 0; i < vertices.size(); i++) {
-		vertices[i]->pos[0] = (rand() % (randSize + 1))+randPos[0];
-		vertices[i]->pos[1] = (rand() % (randSize + 1))+randPos[1];
-		vertices[i]->pos[2] = (rand() % (randSize + 1))+randPos[2];
+		for (int j = 0; j < 3; j++) {
+			vertices[i]->pos[j] = (((double)rand()/RAND_MAX)-0.5)*2*randSize+randPos[j];
+		}
 	}
  }
- // For these above 3 functions try to find a random function that returns doubles, not integers.
+ void draw (Viewport *view, Camera *cam) {
+	Uint32 color = 0x00000000;
+	// The color of the wireframe
+	double *transformationMatrix = pointsToMatrix(view->pos, view->screen->W_WIDTH, view->screen->W_HEIGHT);
+	for (int i = 0; i < 6; i++) {
+		cout << "transformationMatrix[" << i << "] is: " << transformationMatrix[i] << endl;		
+	}
+	// This is the transformation matrix that maps each of the vertices on the viewport to a cartesian grid.
+	double *intersectStart[vertices.size()];
+	for (int i = 0; i < vertices.size(); i++) {
+		intersectStart[i] = findIntersect(view, cam, vertices[i]->pos, 3);
+	}
+	bool isCamAboveViewport = isAbovePlane(cam->pos, view->pos[0], view->pos[1], view->pos[2]);
+	// intersectStart is the intersection point of the line from the camera to the vertice with the viewport.
+	for (int i = 0; i < vertices.size(); i++) {
+		cout << "transforming the point " << flush;
+		for (int j = 0; j < 3; j++) {
+			cout << intersectStart[i][j] << ", " << flush;
+		}
+		cout << "with transformation matrix" << endl;
+		double *intersectEnd[vertices[i]->connections.size()];
+		double *newPosOrigin = matrixTransform(transformationMatrix, intersectStart[i]);
+		// Now we transform the points that are on the viewport into a cartesian grid.
+		for (int j = 0; j < vertices[i]->connections.size(); j++) {
+			if (isAbovePlane(vertices[i]->connections[j]->pos, view->pos[0], view->pos[1], view->pos[2]) == isCamAboveViewport) {
+				// If the vertice to be drawn is on the same side of the viewport as the camera, it should NOT be drawn.
+				intersectEnd[j] = findIntersect(view, cam, vertices[i]->connections[j]->pos, 3);
+				// That will find the intersection of the line from the camera to the connection vertice with the viewport plane.
+				double *newPosEnd = matrixTransform(transformationMatrix, intersectEnd[j] );
+				// This will transform the vertice's line's intersection with the viewport to the screen grid.
+				view->screen->drawLine((int)newPosOrigin[0], (int)newPosOrigin[1], (int)newPosEnd[0], (int)newPosEnd[1], color);
+				// Then, we draw a line from each of those intersects.
+				cout << "drawing a line from " << (int)newPosOrigin[0] << "," << (int)newPosOrigin[1] << " to " << (int)newPosEnd[0] << "," << (int)newPosEnd[1] << endl;
+			}
+		}
+	}
+	delete transformationMatrix;
+ }
+};
+class Key {
+	public:
+	 string name;
+	 bool isDown;
+	 Key(string name) {
+		this->name = name;
+	 }
 };
 int main() {
-	const int width = 1920;
-	const int height = 1080;
-	cout << "Hello World!" << endl;
+	srand(time(NULL));
+	// This will seed the random number generator
+	const int width = 600;
+	const int height = 400;
+	Screen screen;
+	screen.init(width, height);
+	SDL_Event event;
 	double camPos[] = {3.4, 2.1, 4};
 	double camDegree[] = {8, 2, 1};
+	//double camPos[3] = {0, 0, 0};
+	//double camDegree[3] = {0, 0, 0};
 	Camera camera(camPos, camDegree, 3, 3);
+	Camera *cam = &camera;
 	for (int i = 0; i < sizeof(camera.pos)/sizeof(double); i++) {
 		cout << camera.pos[i] << endl;
 	}
 	for (int i = 0; i < sizeof(camera.angle)/sizeof(double); i++) {
 		cout << camera.angle[i] << endl;
 	}
-	Viewport view(&camera);
+	Viewport viewport(&camera, &screen);
+	Viewport *view = &viewport;
 	for (int i = 0; i < 4; i++) {
 		for (int j = 0; j < 3; j++) {
-			cout << view.pos[i][j] << "," << flush;
+			cout << viewport.pos[i][j] << "," << flush;
 		}
 		cout << endl;
 	}
 	camera.angle[0] = 14;
 	camera.angle[1] = -23;
 	camera.angle[2] = 33;
-	view.size = 10;
-	view.setVPosToCam();
+	viewport.size = 30;
+	viewport.setVPosToCam();
 	for (int i = 0; i < 4; i++) {
 		for (int j = 0; j < 3; j++) {
-			cout << view.pos[i][j] << "," << flush;
+			cout << viewport.pos[i][j] << "," << flush;
 		}
 		cout << endl;
 	}
-	Viewport *pView = &view;
 	double vertice[3] = {34, 1, -4};
-	double *intersect = findIntersect(pView, vertice, camera.pos, sizeof(camPos)/sizeof(double));
-	double *transformMatrix = view.posToMatrix(width, height);
+	double *intersect = findIntersect(view, cam, vertice, sizeof(camPos)/sizeof(double));
+	double *transformMatrix = viewport.posToMatrix(width, height);
 	cout << "| " << transformMatrix[0] << " " << transformMatrix[1] << " |" << endl << "| " << transformMatrix[2] << " " << transformMatrix[3] << " |" << endl << "| " << transformMatrix[4] << " " << transformMatrix[5] << " |" << endl;
+	Polyhedron poly(view);
+	Polyhedron* pPoly = &poly;
+	Polyhedron::Vertice vertice1(pPoly);
+	vertice1.pos[0] = 20;
+	vertice1.pos[1] = 20;
+	vertice1.pos[2] = 50;
+	Polyhedron::Vertice vertice2(pPoly);
+	vertice2.pos[0] = 23;
+	vertice2.pos[1] = 43;
+	vertice2.pos[2] = 65;
+	Polyhedron::Vertice vertice3(pPoly);
+	vertice3.pos[0] = 12;
+	vertice3.pos[1] = 33;
+	vertice3.pos[2] = 56;
+	Polyhedron::Vertice vertice4(pPoly);
+	vertice3.pos[0] = 32;
+	vertice3.pos[1] = 44;
+	vertice3.pos[2] = 51;
+	double randPos[3] = { 0, 0, 0 };
+	poly.randVerticePos(60, randPos);
+	poly.connectAll();
+	
+	bool w = false;
+	bool a = false;
+	bool s = false;
+	bool d = false;
+	bool q = false;
+	bool e = false;
+	bool space = false;
+	bool shift = false;
+	bool up = false;
+	bool left = false;
+	bool down = false;
+	bool right = false;
+
+	bool quit = false;
+	while (!quit) {
+		for (int i = 0; i < width; i++) {
+			for (int j = 0; j < height; j++) {
+				screen.setPixel( i, j, 0xFFFFFFFF);
+			}
+		}
+		if (up) {
+			cam->angle[0] += .01;
+		} else if (down) {
+			cam->angle[0] -= .01;
+		}
+		if (left) {
+			cam->angle[1] += .01;
+		} else if (right) {
+			cam->angle[1] -= .01;
+		}
+		if (q) {
+			cam->angle[2] += .01;
+		} else if (e) {
+			cam->angle[2] -= .01;
+		}
+		if (a) {
+			cam->pos[0] += 1;
+		} else if (d) {
+			cam->pos[0] -= 1;
+		}
+		if (space) {
+			cam->pos[1] += 1;
+		} else if (shift) {
+			cam->pos[1] -= 1;
+		}
+		if (w) {
+			cam->pos[2] += 1;
+		} else if (s) {
+			cam->pos[2] -= 1;
+		}
+		viewport.setVPosToCam();
+		//poly.randVerticePos(60, randPos);
+		poly.draw(view, cam);
+		screen.update();
+		while (SDL_PollEvent (&event)) {
+			if (event.type == SDL_QUIT) {
+				quit = true;
+			}
+			if (event.type == SDL_KEYDOWN) {
+				if (event.key.keysym.sym == SDLK_w) {
+					w = true;
+					s = false;
+				}
+				if (event.key.keysym.sym == SDLK_a) {
+					a = true;
+					d = false;
+				}
+				if (event.key.keysym.sym == SDLK_s) {
+					s = true;
+					w = false;
+				}
+				if (event.key.keysym.sym == SDLK_d) {
+					d = true;
+					a = false;
+				}
+				if (event.key.keysym.sym == SDLK_q) {
+					q = true;
+					e = false;
+				}
+				if (event.key.keysym.sym == SDLK_e) {
+					e = true;
+					q = false;
+				}
+				if (event.key.keysym.sym == SDLK_SPACE) {
+					space = true;
+					shift = false;
+				}
+				if (event.key.keysym.sym == SDLK_LSHIFT) {
+					shift = true;
+					space = false;
+				}
+				if (event.key.keysym.sym == SDLK_UP) {
+					up = true;
+					down = false;
+				}
+				if (event.key.keysym.sym == SDLK_LEFT) {
+					left = true;
+					right = false;
+				}
+				if (event.key.keysym.sym == SDLK_DOWN) {
+					down = true;
+					up = false;
+				}
+				if (event.key.keysym.sym == SDLK_RIGHT) {
+					right = true;
+					left = false;
+				}
+			}
+			if (event.type == SDL_KEYUP) {
+				if (event.key.keysym.sym == SDLK_w) {
+					w = false;
+				}
+				if (event.key.keysym.sym == SDLK_a) {
+					a = false;
+				}
+				if (event.key.keysym.sym == SDLK_s) {
+					s = false;
+				}
+				if (event.key.keysym.sym == SDLK_d) {
+					d = false;
+				}
+				if (event.key.keysym.sym == SDLK_q) {
+					q = false;
+				}
+				if (event.key.keysym.sym == SDLK_e) {
+					e = false;
+				}
+				if (event.key.keysym.sym == SDLK_SPACE) {
+					space = false;
+				}
+				if (event.key.keysym.sym == SDLK_LSHIFT) {
+					shift = false;
+				}
+				if (event.key.keysym.sym == SDLK_UP) {
+					up = false;
+				}
+				if (event.key.keysym.sym == SDLK_LEFT) {
+					left = false;
+				}
+				if (event.key.keysym.sym == SDLK_DOWN) {
+					down = false;
+				}
+				if (event.key.keysym.sym == SDLK_RIGHT) {
+					right = false;
+				}
+			}
+		}
+	}
+	screen.close();
 	cout << "done" << endl;
 	return 0;
 }
